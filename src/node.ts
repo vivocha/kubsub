@@ -121,7 +121,7 @@ export class Node extends EventEmitter {
           } catch(e) {
             reject(e);
           }
-        });
+        }));
       }
       return Promise.all(p);
     }).then(() => this);
