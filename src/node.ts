@@ -70,20 +70,28 @@ export class Node extends EventEmitter {
           this.dispose();
           reject(new Error('no_seed'));
         } else {
-          this.node.connect(initialSeed, err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(this);
-            }
-          });
+          try {
+            this.node.connect(initialSeed, () => resolve(this));
+          } catch(e) {
+            reject(e);
+          }
         }
+      }).then(node => {
+        if (otherSeeds && otherSeeds.length) {
+          return this.updateSeeds(otherSeeds);
+        } else {
+          return node;
+        }
+      }).catch(err => {
+        this.dispose();
+        throw err;
       });
     });
 
     let k:string = Node.key(this.address, this.port);
     Node.nodes.set(k, this);
   }
+
   attach():this {
     this.refCount++;
     return this;
@@ -99,6 +107,24 @@ export class Node extends EventEmitter {
       this.node = null;
     }
     Node.nodes.delete(Node.key(this.address, this.port));
+  }
+
+  updateSeeds(seeds?:Seed[]):Promise<this> {
+    return Promise.resolve(seeds).then(seeds => {
+      return seeds || this.seeds();
+    }).then(seeds => {
+      var p = [];
+      for (let i of seeds) {
+        p.push(new Promise((resolve, reject) => {
+          try {
+            this.router.updateContact(new kad.contacts.AddressPortContact(i), resolve);
+          } catch(e) {
+            reject(e);
+          }
+        });
+      }
+      return Promise.all(p);
+    }).then(() => this);
   }
 
   private subscribe(topic:string):void {
@@ -119,7 +145,8 @@ export class Node extends EventEmitter {
     this.subscribe(event);
     return super.once(event, listener);
   }
-  send(topic:string, msg:Message): Message {
+
+  send(topic:string, msg:Message = {}): Message {
     msg._id = uuid.v4();
     this.quasar.publish(topic, msg);
     return msg;
