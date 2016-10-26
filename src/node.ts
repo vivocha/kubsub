@@ -9,6 +9,7 @@ export interface Message {
   _id?:string;
   _from?:string;
   type?:string;
+  [key:string]:any;
 }
 
 export type Seed = {
