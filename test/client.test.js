@@ -38,6 +38,21 @@ describe('Client', function() {
         catchF.should.have.been.called();
       });
     });
+
+    it('should return the address and port', function() {
+      c = new Client({
+        seeds() {
+          return Promise.resolve([{ address: '0.0.0.0', port: 6545 }]);
+        }
+      });
+      return Promise.all([
+        c.address,
+        c.port
+      ]).then(([address, port]) => {
+        address.should.equal('0.0.0.0');
+        port.should.equal(6545);
+      })
+    });
   });
 
 });

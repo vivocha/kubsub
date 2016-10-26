@@ -23,6 +23,12 @@ export class Client {
     }
     return this.node.then(node => node.detach());
   }
+  get address():Promise<string> {
+    return this.node.then(node => node.address);
+  }
+  get port():Promise<number> {
+    return this.node.then(node => node.port);
+  }
   channel(name:string): Channel {
     return new Channel(name + '@' + this.namespace, this.node, this.channels);
   }
