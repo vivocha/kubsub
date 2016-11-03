@@ -1,6 +1,7 @@
+import { Logger } from 'kad';
 import * as debug from 'debug';
 
-export default function getLogger(label:string) {
+export default function getLogger(label:string):Logger {
   return {
     log: debug(label + ':log'),
     info: debug(label + ':info'),

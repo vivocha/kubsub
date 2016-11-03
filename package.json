@@ -7,10 +7,10 @@
     "prebuild": "rimraf dist",
     "build": "tsc",
     "commit": "git-cz",
-    "check-coverage": "nyc check-coverage --statements 100 --branches 100 --functions 100 --lines 100",
+    "check-coverage": "nyc check-coverage --statements 90 --branches 80 --functions 90 --lines 90",
     "report-coverage": "cat ./coverage/lcov.info | codecov",
     "watch:test": "npm t -- -w",
-    "test": "mocha test/*.test.js",
+    "test": "mocha --recursive test",
     "cover": "nyc --reporter=lcov --reporter=text npm t",
     "semantic-release": "semantic-release pre && npm publish && semantic-release post"
   },

@@ -1,9 +1,8 @@
 import { EventEmitter } from 'events';
+import { QuasarNode } from './quasar';
 import * as uuid from 'uuid';
+import * as kad from 'kad';
 import logger from './logger';
-
-const kad = require('kad');
-const Quasar = require('kad-quasar').Protocol;
 
 export interface Message {
   _id?:string;
@@ -29,9 +28,7 @@ export interface NodeOptions {
 export class Node extends EventEmitter {
   public ready:Promise<Node> = null;
   private refCount:number = 0;
-  private router:any = null;
-  private quasar:any = null;
-  private node:any = null;
+  private quasar:QuasarNode = null;
   private topics:Set<string> = new Set();
   readonly address:string;
   readonly port:number;
@@ -48,21 +45,10 @@ export class Node extends EventEmitter {
       refresh: this.refresh = 0
     } = opts);
 
-    let storage = new kad.storage.MemStore();
-    let contact = new kad.contacts.AddressPortContact({ address: this.address, port: this.port });
-    let transport = new kad.transports.UDP(contact, {
-      logger: logger('kad-transport')
-    });
-    this.router = new kad.Router({
-      transport: transport,
-      logger: logger('kad-router')
-    });
-    this.quasar = new Quasar(this.router);
-    this.node = new kad.Node({
-      transport: transport,
-      router: this.router,
-      logger: logger('kad-node'),
-      storage: storage
+    this.quasar = new QuasarNode({
+      address: this.address,
+      port: this.port,
+      logger: logger('kad')
     });
 
     this.ready = this.seeds().then(([initialSeed,...otherSeeds]) => {
@@ -72,7 +58,7 @@ export class Node extends EventEmitter {
           reject(new Error('no_seed'));
         } else {
           try {
-            this.node.connect(initialSeed, () => resolve(this));
+            (this.quasar as any).connect(initialSeed, () => resolve(this)); // TODO add types for kad
           } catch(e) {
             reject(e);
           }
@@ -103,9 +89,9 @@ export class Node extends EventEmitter {
     }
   }
   dispose():void {
-    if (this.node) {
-      this.node.disconnect();
-      this.node = null;
+    if (this.quasar) {
+      (this.quasar as any).disconnect(); // TODO add types for kad
+      this.quasar = null;
     }
     Node.nodes.delete(Node.key(this.address, this.port));
   }
@@ -118,7 +104,7 @@ export class Node extends EventEmitter {
       for (let i of seeds) {
         p.push(new Promise((resolve, reject) => {
           try {
-            this.router.updateContact(new kad.contacts.AddressPortContact(i), resolve);
+            this.quasar.router.updateContact(new kad.contacts.AddressPortContact(i), resolve);
           } catch(e) {
             reject(e);
           }
