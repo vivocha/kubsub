@@ -1,7 +1,6 @@
 import { BloomFilter } from './bloomfilter';
 import { knuthShuffle as shuffle } from './shuffle';
 import * as uuid from 'uuid';
-import * as async from 'async';
 const LRUCache = require('lru-cache');
 const kad = require('kad');
 
@@ -72,26 +71,27 @@ export class Quasar {
    * @param {Object} options
    * @param {String} options.key - Use neighbors close to this key (optional)
    */
-  publish(topic:string, data:any, options?:{ key?:string }):void {
-    var self = this;
-    var nodeID = this._router._self.nodeID;
-    var limit = kad.constants.ALPHA;
-    var key = options ? (options.key || nodeID) : nodeID;
-    var neighbors = this._router.getNearestContacts(key, limit, nodeID);
+  publish(topic:string, data:any, options?:{ key?:string }):Promise<any> {
+    let nodeID = this._router._self.nodeID;
+    let limit = kad.constants.ALPHA;
+    let key = options ? (options.key || nodeID) : nodeID;
+    let neighbors = this._router.getNearestContacts(key, limit, nodeID);
 
     this._log.info('publishing message on topic "%s"', topic);
 
     // Dispatch message to our closest neighbors
-    async.each(neighbors, function (contact, done) {
-      self._sendPublish(contact, {
+    let p = [];
+    for (let n of neighbors) {
+      p.push(this._sendPublish(n, {
         uuid: uuid.v4(),
         topic: topic,
         contents: data,
         publishers: [nodeID],
-        ttl: self._options.maxRelayHops,
-        contact: self._router._self
-      }, done);
-    });
+        ttl: this._options.maxRelayHops,
+        contact: this._router._self
+      }));
+    }
+    return Promise.all(p);
   }
 
   /**
@@ -99,14 +99,12 @@ export class Quasar {
    * @param {String|Array} topic - The publication identifier(s)
    * @param {Function} callback - Function to call when publication is received
    */
-  subscribe(topic:string, callback:(data:any, topic?:string)=>void):void {
-    var self = this;
-
-    function _addTopicToBloomFilter(topic) {
-      self._log.info('subscribing to topic "%s"', topic);
-      self._bf.filters[0].add(topic);
+  subscribe(topic:string|string[], callback:(data:any, topic?:string)=>void):void {
+    let _addTopicToBloomFilter = topic => {
+      this._log.info('subscribing to topic "%s"', topic);
+      this._bf.filters[0].add(topic);
       // Set a handler for when we receive a publication we are interested in
-      self._groups[topic] = callback;
+      this._groups[topic] = callback;
     }
 
     // Update our ABF with our subscription information, add our negative
@@ -124,8 +122,7 @@ export class Quasar {
    * Implements the Quasar join protocol
    * @private
    */
-  _sendUpdatesToNeighbors() {
-    var self = this;
+  private _sendUpdatesToNeighbors():void {
     var nodeID = this._router._self.nodeID;
     var limit = kad.constants.ALPHA;
 
@@ -135,10 +132,10 @@ export class Quasar {
     this._log.debug('requesting neighbors\' bloom filters');
 
     // Get neighbors bloom filters and merge them with our own
-    this._updateAttenuatedBloomFilter(neighbors, function () {
+    this._updateAttenuatedBloomFilter(neighbors).then(() => {
       // Send our neighbors our merged bloom filters
       for (var n = 0; n < neighbors.length; n++) {
-        self._updateNeighbor(neighbors[n]);
+        this._updateNeighbor(neighbors[n]);
       }
     });
   }
@@ -149,27 +146,19 @@ export class Quasar {
    * @param {Array} neighbors
    * @param {Function} callback
    */
-  _updateAttenuatedBloomFilter(neighbors, callback) {
-    var self = this;
+ private _updateAttenuatedBloomFilter(neighbors):Promise<any> {
+    let p = Promise.resolve(true);
 
-    // Iterate over all the given neighbors
-    async.each(neighbors, function (contact, done) {
-      // Ask the contact for their attenuated bloom filter
-      self._getBloomFilterFromNeighbor(contact, function (err, atbf) {
-        if (err) {
-          self._log.warn(
-            'failed to get neighbor\'s bloom filter, reason: %s',
-            err.message
-          );
-          return done();
-        }
-
-        self._log.info('merging neighbor\'s bloom filter with our own');
+    for (let n of neighbors) {
+      p = p.then(() => this._getBloomFilterFromNeighbor(n)).then((atbf: BloomFilter) => {
+        this._log.info('merging neighbor\'s bloom filter with our own');
         // Merge the remote copy of the bloom filter with our own
-        self._applyAttenuatedBloomFilterUpdate(atbf);
-        done();
+        this._applyAttenuatedBloomFilterUpdate(atbf);
+      }, (err: Error) => {
+        this._log.warn('failed to get neighbor\'s bloom filter, reason: %s', err.message);
       });
-    }, callback);
+    }
+    return p;
   }
 
   /**
@@ -177,7 +166,7 @@ export class Quasar {
    * @private
    * @param {BloomFilter} atbf
    */
-  _applyAttenuatedBloomFilterUpdate(atbf) {
+  private _applyAttenuatedBloomFilterUpdate(atbf) {
     // Iterate for the depth of our bitfield minus our view of neighbors
     for (var f = 1; f < this._bf.depth; f++) {
       // Then for each bloom filter in our neighbor's response, merge their
@@ -200,20 +189,27 @@ export class Quasar {
    * @param {Object} params
    * @param {Function} callback
    */
-  _sendPublish(contact, params, callback) {
-    // check to make sure the message we are sending hasn't expired:
-    if (params.ttl < 1) {
-      return callback(new Error('outgoing PUBLISH message has expired'));
-    }
-
-    // send the message:
-    this._router._rpc.send(contact, kad.Message({
-      params: Object.assign({}, params, {
-        contact: this._router._self,
-        ttl: --params.ttl
-      }),
-      method: Quasar.PUBLISH_METHOD
-    }), callback);
+  _sendPublish(contact, params):Promise<any> {
+    return new Promise((resolve, reject) => {
+      // check to make sure the message we are sending hasn't expired:
+      if (params.ttl < 1) {
+        reject(new Error('outgoing PUBLISH message has expired'));
+      } else {
+        this._router._rpc.send(contact, kad.Message({
+          params: Object.assign({}, params, {
+            contact: this._router._self,
+            ttl: --params.ttl
+          }),
+          method: Quasar.PUBLISH_METHOD
+        }), (err, data) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(data);
+          }
+        });
+      }
+    });
   }
 
   /**
@@ -224,7 +220,6 @@ export class Quasar {
    */
   _handlePublish(params, callback) {
     /* jshint maxstatements:false */
-    var self = this;
     var neighbors = this._router.getNearestContacts(
       this._router._self.nodeID,
       kad.constants.K,
@@ -253,15 +248,17 @@ export class Quasar {
     if (this._bf.filters[0].has(params.topic) && this._groups[params.topic]) {
       // If we are, then execute our subscription handler
       this._groups[params.topic](params.contents, params.topic);
-      // Pass the publication along to our neighbors
-      return async.each(neighbors, function (contact, done) {
-        self._sendPublish(contact, params, done);
-      }, callback);
-    }
 
-    // We are not interested in this message, so let's forward it on to our
-    // neighbors to see if any of them are interested
-    this._relayPublication(neighbors, params, callback);
+      let p = Promise.resolve(true);
+      for (let n of neighbors) {
+        p = p.then(() => this._sendPublish(n, params));
+      }
+      p.then(() => callback());
+    } else {
+      // We are not interested in this message, so let's forward it on to our
+      // neighbors to see if any of them are interested
+      this._relayPublication(neighbors, params).then(data => callback(null, data), err => callback(err));
+    }
   }
 
   /**
@@ -271,71 +268,59 @@ export class Quasar {
    * @param {Object} params
    * @param {Function} callback
    */
-  _relayPublication(neighbors, params, callback) {
-    var self = this;
+  private _relayPublication(neighbors, params):Promise<any> {
     var nodeID = this._router._self.nodeID;
 
-    function _relayToRandomNeighbor() {
-      var randNeighbor = self._getRandomOverlayNeighbor(nodeID, params.topic);
+    let _relayToRandomNeighbor = () => {
+      var randNeighbor = this._getRandomOverlayNeighbor(nodeID, params.topic);
+      this._sendPublish(randNeighbor, params);
+    }
 
-      self._sendPublish(randNeighbor, params, function () {
+    if (this._options.randomRelay) {
+      _relayToRandomNeighbor();
+    } else {
+      var p = [];
+      for (let n of neighbors) {
+        p.push(this._getBloomFilterFromNeighbor(n).then(atbf => {
+          // We iterate over the total number of hops in our bloom filter
+          for (var i = 0; i < this._bf.depth; i++) {
+
+            // Check if their bloom filter for the given hop contains the topic
+            if (atbf.filters[i].has(params.topic)) {
+              var negativeRT = false;
+
+              // Check if their bloom filter contains any of the negative
+              // information for the previous message publishers
+              for (var p = 0; p < params.publishers.length; p++) {
+                if (atbf.filters[i].has(params.publishers[p])) {
+                  negativeRT = true;
+                }
+              }
+
+              // If there is isn't any negative information, then let's relay the
+              // message to the contact
+              if (!negativeRT) {
+                return this._sendPublish(n, params).then(() => true, () => true);
+              }
+            }
+          }
+
+          // Nothing to do, all done
+          return false;
+        }, () => false));
+      }
+
+      Promise.all(p).then(results => results.filter(i => !!i)).then(results => {
+        if (!results || !results.length) {
+          // If none of the neighbors in the above loop should get the message
+          // then we must pick a random overlay neighbor and send it to them
+          _relayToRandomNeighbor();
+        }
       });
     }
 
     // Ack the original sender, so they do not drop us from routing table
-    callback(null, {});
-
-    if (self._options.randomRelay) {
-      return _relayToRandomNeighbor();
-    }
-
-    // Get the bloom filters for all of our closest neighbors
-    async.filter(neighbors, function (contact, done) {
-
-      function _relayMessage() {
-        return self._sendPublish(contact, params, function onResponse() {
-          done(null, true);
-        });
-      }
-
-      self._getBloomFilterFromNeighbor(contact, function (err, atbf) {
-        if (err) {
-          return done(null, false);
-        }
-
-        // We iterate over the total number of hops in our bloom filter
-        for (var i = 0; i < self._bf.depth; i++) {
-
-          // Check if their bloom filter for the given hop contains the topic
-          if (atbf.filters[i].has(params.topic)) {
-            var negativeRT = false;
-
-            // Check if their bloom filter contains any of the negative
-            // information for the previous message publishers
-            for (var p = 0; p < params.publishers.length; p++) {
-              if (atbf.filters[i].has(params.publishers[p])) {
-                negativeRT = true;
-              }
-            }
-
-            // If there is isn't any negative information, then let's relay the
-            // message to the contact
-            if (!negativeRT) {
-              return _relayMessage();
-            }
-          }
-        }
-
-        // Nothing to do, all done
-        done(null, false);
-      });
-    }, function(err, results) {
-      if (!results.length) {
-        // If none of the neighbors in the above loop should get the message
-        // then we must pick a random overlay neighbor and send it to them
-        _relayToRandomNeighbor();
-      }
-    });
+    return Promise.resolve({});
   }
 
   /**
@@ -368,34 +353,30 @@ export class Quasar {
    * @param {kad.Contact} contact
    * @param {Function} callback
    */
-  _getBloomFilterFromNeighbor(contact, callback) {
-    // Construct our SUBSCRIBE message
-    var message = kad.Message({
-      method: Quasar.SUBSCRIBE_METHOD,
-      params: {contact: this._router._self}
-    });
-    var bloomFilter = null;
+  private _getBloomFilterFromNeighbor(contact):Promise<BloomFilter> {
+    return new Promise((resolve, reject) => {
+      // Construct our SUBSCRIBE message
+      let message = kad.Message({
+        method: Quasar.SUBSCRIBE_METHOD,
+        params: {contact: this._router._self}
+      });
 
-    this._router._rpc.send(contact, message, function (err, message) {
-      if (err) {
-        return callback(err);
-      }
+      this._router._rpc.send(contact, message, function (err, message) {
+        if (err) {
+          reject(err);
+        } else if (!message.result.filters) {
+          reject(new Error('Invalid response received'));
+        } else if (!Array.isArray(message.result.filters)) {
+          reject(new Error('Invalid response received'));
+        } else {
+          try {
+            resolve(BloomFilter.deserialize(message.result.filters));
+          } catch (err) {
+            reject(new Error('Failed to deserialize bloom filter'));
+          }
+        }
 
-      if (!message.result.filters) {
-        return callback(new Error('Invalid response received'));
-      }
-
-      if (!Array.isArray(message.result.filters)) {
-        return callback(new Error('Invalid response received'));
-      }
-
-      try {
-        bloomFilter = BloomFilter.deserialize(message.result.filters);
-      } catch (err) {
-        return callback(new Error('Failed to deserialize bloom filter'));
-      }
-
-      callback(null, bloomFilter);
+      });
     });
   }
 
@@ -403,7 +384,7 @@ export class Quasar {
    * Send the contact our updated attenuated bloom filter
    * @private
    */
-  _updateNeighbor(contact) {
+  private _updateNeighbor(contact):void {
     var self = this;
 
     // Construct our UPDATE message
@@ -429,7 +410,7 @@ export class Quasar {
    * @param {String} topic
    * @returns {kad.Contact}
    */
-  _getRandomOverlayNeighbor(nodeID, topic) {
+  private _getRandomOverlayNeighbor(nodeID:string, topic:string) {
     var randIndex = kad.utils.getBucketIndex(nodeID, kad.utils.createID(topic));
     var randBucket = kad.utils.getRandomInBucketRangeBuffer(randIndex);
     var randKey = kad.utils.createID(randBucket);
