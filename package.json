@@ -7,7 +7,7 @@
     "prebuild": "rimraf dist",
     "build": "tsc",
     "commit": "git-cz",
-    "check-coverage": "nyc check-coverage --statements 100 --branches 100 --functions 100 --lines 100",
+    "check-coverage": "nyc check-coverage --statements 90 --branches 80 --functions 80 --lines 90",
     "report-coverage": "cat ./coverage/lcov.info | codecov",
     "watch:test": "npm t -- -w",
     "test": "mocha --recursive test",
@@ -57,8 +57,7 @@
       "path": "node_modules/cz-conventional-changelog"
     },
     "ghooks": {
-      "_pre-commit": "npm run build && npm run cover && npm run check-coverage",
-      "pre-commit": "npm run build && npm run cover"
+      "pre-commit": "npm run build && npm run cover && npm run check-coverage"
     }
   },
   "dependencies": {
