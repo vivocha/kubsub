@@ -2,7 +2,6 @@ const chai = require('chai')
   , should = chai.should()
   , BloomFilter = require('../../dist/quasar/bloomfilter').BloomFilter
 
-
 describe('BloomFilter', function() {
 
   describe('serialize', function() {

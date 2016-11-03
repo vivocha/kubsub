@@ -3,7 +3,6 @@ const chai = require('chai')
   , kad = require('kad')
   , QuasarNode = require('../../dist/quasar/node').QuasarNode
 
-
 describe('QuasarNode', function() {
 
   describe('constructor', function() {

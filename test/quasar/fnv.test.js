@@ -2,7 +2,6 @@ const chai = require('chai')
   , should = chai.should()
   , FNV = require('../../dist/quasar/fnv').FNV
 
-
 describe('FNV', function() {
 
   describe('update', function() {

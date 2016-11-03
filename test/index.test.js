@@ -1,10 +1,7 @@
 const chai = require('chai')
-  , spies = require('chai-spies')
   , should = chai.should()
   , Client = require('../dist/client').Client
   , create = require('../dist/index').create
-
-chai.use(spies);
 
 describe('kubsub', function() {
 

@@ -2,7 +2,6 @@ const chai = require('chai')
   , should = chai.should()
   , Bloem = require('../../dist/quasar/bloem').Bloem
 
-
 describe('Bloem', function() {
 
   describe('destringify', function() {

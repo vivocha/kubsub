@@ -1,9 +1,6 @@
 const chai = require('chai')
-  , spies = require('chai-spies')
   , should = chai.should()
   , Client = require('../dist/client').Client
-
-chai.use(spies);
 
 describe('Channel', function() {
 

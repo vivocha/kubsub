@@ -2,7 +2,6 @@ const chai = require('chai')
   , should = chai.should()
   , BitBuffer = require('../../dist/quasar/bitbuffer').BitBuffer
 
-
 describe('BitBuffer', function() {
 
   describe('constructor', function() {
