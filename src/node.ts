@@ -26,6 +26,9 @@ export interface NodeOptions {
 }
 
 export class Node extends EventEmitter {
+  static DEFAULT_ADDRESS:string = '0.0.0.0';
+  static DEFAULT_PORT:number = 6545;
+
   public ready:Promise<Node> = null;
   private refCount:number = 0;
   private quasar:QuasarNode = null;
@@ -39,8 +42,8 @@ export class Node extends EventEmitter {
     super();
 
     ({
-      address: this.address = '0.0.0.0',
-      port: this.port = 6545,
+      address: this.address = Node.DEFAULT_ADDRESS,
+      port: this.port = Node.DEFAULT_PORT,
       seeds: this.seeds,
       refresh: this.refresh = 0
     } = opts);
@@ -144,7 +147,7 @@ export class Node extends EventEmitter {
     return address + ':' + port;
   }
   static get(opts:NodeOptions):Promise<Node> {
-    let { address = '0.0.0.0', port = 6545 } = opts;
+    let { address = Node.DEFAULT_ADDRESS, port = Node.DEFAULT_PORT } = opts;
     let key:string = Node.key(address, port);
     let node:Node = Node.nodes.get(key);
     if (!node) {

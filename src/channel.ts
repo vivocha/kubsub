@@ -18,7 +18,7 @@ export class Channel extends EventEmitter {
           this.emit(msg.type, msg);
         }
       }
-    }
+    };
     this.node.then((node:Node) => {
       node.on(channel, this.handler);
       this.registry.add(this);

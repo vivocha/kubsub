@@ -7,11 +7,11 @@
     "prebuild": "rimraf dist",
     "build": "tsc",
     "commit": "git-cz",
-    "check-coverage": "nyc check-coverage --statements 90 --branches 80 --functions 80 --lines 90",
+    "check-coverage": "nyc check-coverage",
     "report-coverage": "cat ./coverage/lcov.info | codecov",
     "watch:test": "npm t -- -w",
     "test": "mocha --recursive test",
-    "cover": "nyc --reporter=lcov --reporter=text npm t",
+    "cover": "nyc npm t",
     "semantic-release": "semantic-release pre && npm publish && semantic-release post"
   },
   "repository": {
@@ -39,6 +39,7 @@
   "homepage": "https://github.com/vivocha/kubsub#readme",
   "devDependencies": {
     "@types/debug": "0.0.29",
+    "@types/node": "6.0.45",
     "@types/uuid": "2.0.29",
     "chai": "3.5.0",
     "chai-spies": "0.7.1",
@@ -61,11 +62,29 @@
     }
   },
   "dependencies": {
-    "@types/node": "6.0.45",
+    "aws-sdk": "2.6.15",
     "debug": "2.2.0",
     "kad": "1.6.1",
-    "kad-quasar": "1.0.1",
     "lru-cache": "4.0.1",
     "uuid": "2.0.3"
+  },
+  "nyc": {
+    "lines": 100,
+    "statements": 100,
+    "functions": 100,
+    "branches": 100,
+    "exclude": [
+      "test/**",
+      "test{,-*}.js",
+      "**/*.test.js",
+      "**/__tests__/**",
+      "**/node_modules/**",
+      "dist/aws.js",
+      "dist/quasar/quasar.js"
+    ],
+    "reporter": [
+      "lcov",
+      "text"
+    ]
   }
 }

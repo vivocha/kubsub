@@ -1,7 +1,6 @@
-import { ClientOptions, Client } from './client';
+import { Client } from './client';
 export { ClientOptions, Client } from './client';
+export { AWSClientOptions, createAWSClient } from './aws';
 export { Channel } from './channel';
 
-export function create(opts:ClientOptions):Promise<Client> {
-  return (new Client(opts)).connect();
-}
+export let create = Client.create;

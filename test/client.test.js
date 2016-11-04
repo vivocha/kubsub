@@ -22,7 +22,7 @@ describe('Client', function() {
       });
       c.connect().catch(err => {});
       c.should.be.instanceOf(Client);
-      c.namespace.should.equal('kubsub');
+      c.namespace.should.equal(Client.DEFAULT_NAMESPACE);
     });
 
     it('should call the seedRetriever', function () {
@@ -49,8 +49,8 @@ describe('Client', function() {
         c.address,
         c.port
       ]).then(([address, port]) => {
-        address.should.equal('0.0.0.0');
-        port.should.equal(6545);
+        address.should.equal(Client.DEFAULT_ADDRESS);
+        port.should.equal(Client.DEFAULT_PORT);
       })
     });
   });

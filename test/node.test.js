@@ -22,8 +22,8 @@ describe('Node', function() {
       });
       n.ready.catch(err => {});
       n.should.be.instanceOf(Node);
-      n.address.should.equal('0.0.0.0');
-      n.port.should.equal(6545);
+      n.address.should.equal(Node.DEFAULT_ADDRESS);
+      n.port.should.equal(Node.DEFAULT_PORT);
       n.refresh.should.equal(0);
     });
 
@@ -54,7 +54,7 @@ describe('Node', function() {
       n.ready.catch(err => {});
       n.should.be.instanceOf(Node);
       n.address.should.equal('aaa');
-      n.port.should.equal(6545);
+      n.port.should.equal(Node.DEFAULT_PORT);
       n.refresh.should.equal(1);
     });
 

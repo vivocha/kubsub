@@ -114,6 +114,15 @@ describe('Channel', function() {
       });
     });
 
+    it('should use the same node', function () {
+      return Promise.all([
+        c1.node,
+        c2.node
+      ]).then(nodes => {
+        nodes[0].should.equal(nodes[1]);
+      });
+    });
+
     it('should emit "ready" when connected', function () {
       const ready = chai.spy();
       return Promise.all([

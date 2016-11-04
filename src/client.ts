@@ -6,12 +6,16 @@ export interface ClientOptions extends NodeOptions {
 }
 
 export class Client {
+  static DEFAULT_ADDRESS:string = Node.DEFAULT_ADDRESS;
+  static DEFAULT_PORT:number = Node.DEFAULT_PORT;
+  static DEFAULT_NAMESPACE:string = 'kubsub';
+
   private namespace:string;
   private node:Promise<Node>;
   private channels:Set<Channel> = new Set();
 
   constructor(opts:ClientOptions) {
-    ({ namespace: this.namespace = 'kubsub' } = opts);
+    ({ namespace: this.namespace = Client.DEFAULT_NAMESPACE } = opts);
     this.node = Node.get(opts);
   }
   connect():Promise<this> {
@@ -37,5 +41,9 @@ export class Client {
   }
   updateSeeds(seeds?:Seed[]):Promise<this> {
     return this.node.then(node => node.updateSeeds(seeds)).then(() => this);
+  }
+
+  static create(opts:ClientOptions):Promise<Client> {
+    return (new Client(opts)).connect();
   }
 }
